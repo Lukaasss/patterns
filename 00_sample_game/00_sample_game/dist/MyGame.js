@@ -1,8 +1,8 @@
 // MyGame - Example implementation of Game interface
+// Verwendet Factory Pattern, Singleton Pattern und Observer Pattern
 import { Game, GameFramework } from "./GameFramework.js";
-import { Rectangle } from "./actors/Rectangle.js";
-import { Triangle } from "./actors/Triangle.js";
-import { Circle } from "./actors/Circle.js";
+import { actorFactory } from "./actors/ActorFactory.js";
+import { GameEventManager } from "./actors/GameEventManager.js";
 class MyGame extends Game {
     constructor() {
         super();
@@ -19,18 +19,22 @@ class MyGame extends Game {
         // Tastatureingabe
         this.leftPressed = false;
         this.rightPressed = false;
-        // 3 Rechtecke mit zufälligen Positionen
-        this.actors.push(new Rectangle(this.getRandomX()));
-        this.actors.push(new Rectangle(this.getRandomX()));
-        this.actors.push(new Rectangle(this.getRandomX()));
-        // 3 Dreiecke mit zufälligen Positionen
-        this.actors.push(new Triangle(this.getRandomX()));
-        this.actors.push(new Triangle(this.getRandomX()));
-        this.actors.push(new Triangle(this.getRandomX()));
-        // 3 Kreise mit zufälligen Positionen
-        this.actors.push(new Circle(this.getRandomX()));
-        this.actors.push(new Circle(this.getRandomX()));
-        this.actors.push(new Circle(this.getRandomX()));
+        // Observer Pattern: Event-Listener registrieren
+        this.setupEventListeners();
+        // Factory Pattern + Singleton: Erstelle alle Actors über die Factory
+        // Variante 1: Gemischte Gruppe mit gleicher Anzahl pro Typ
+        this.actors = actorFactory.createMixedGroup(3);
+        // Alternative Varianten:
+        // Variante 2: Einzelne Actors erstellen
+        // this.actors.push(actorFactory.createActor(ActorType.RECTANGLE));
+        // this.actors.push(actorFactory.createActor(ActorType.TRIANGLE, { x: 200 }));
+        // this.actors.push(actorFactory.createActor(ActorType.CIRCLE, { x: 400 }));
+        // Variante 3: Mehrere eines Typs erstellen
+        // this.actors.push(...actorFactory.createMultiple(ActorType.RECTANGLE, 3));
+        // Variante 4: Zufällige Actors erstellen
+        // for (let i = 0; i < 9; i++) {
+        //   this.actors.push(actorFactory.createRandomActor());
+        // }
         // Tastatur-Event-Listener
         document.addEventListener('keydown', (e) => this.handleKeyDown(e));
         document.addEventListener('keyup', (e) => this.handleKeyUp(e));
@@ -55,8 +59,34 @@ class MyGame extends Game {
             });
         }
     }
+    /**
+     * Observer Pattern: Registriert Event-Listener für Game-Events
+     */
+    setupEventListeners() {
+        // Listener für verpasste Actors
+        GameEventManager.on("actor:reachedBottom", (data) => {
+            console.log(`Actor verpasst bei Position (${data.position.x.toFixed(0)}, ${data.position.y.toFixed(0)})`);
+        });
+        // Listener für eingesammelte Actors
+        GameEventManager.on("actor:collected", (data) => {
+            console.log(`Actor eingesammelt bei Position (${data.position.x.toFixed(0)}, ${data.position.y.toFixed(0)})`);
+        });
+        // Listener für Score-Updates
+        GameEventManager.on("score:missed", (data) => {
+            console.log(`Gesamt verpasst: ${data.count}`);
+        });
+        GameEventManager.on("score:collected", (data) => {
+            console.log(`Gesamt eingesammelt: ${data.count}`);
+        });
+        // Listener für Geschwindigkeitsänderungen
+        GameEventManager.on("game:speedChanged", (data) => {
+            console.log(`Geschwindigkeit geändert auf: ${data.multiplier.toFixed(2)}x`);
+        });
+    }
     updateSpeedMultiplier() {
         this.actors.forEach(actor => actor.setSpeedMultiplier(this.speedMultiplier));
+        // Observer Pattern: Event auslösen
+        GameEventManager.emit("game:speedChanged", { multiplier: this.speedMultiplier });
     }
     handleKeyDown(e) {
         if (e.key === 'ArrowLeft' || e.key === 'a') {
@@ -106,11 +136,17 @@ class MyGame extends Game {
                 objectCenterX >= this.playerX &&
                 objectCenterX <= this.playerX + this.playerWidth) {
                 this.collectedCounter++;
+                // Observer Pattern: Events auslösen
+                GameEventManager.emit("actor:collected", { actor, position: pos });
+                GameEventManager.emit("score:collected", { count: this.collectedCounter });
                 actor.reset();
             }
             // Wenn Objekt das untere Ende erreicht hat (ohne eingesammelt zu werden)
             else if (actor.hasReachedBottom()) {
                 this.counter++;
+                // Observer Pattern: Events auslösen
+                GameEventManager.emit("actor:reachedBottom", { actor, position: pos });
+                GameEventManager.emit("score:missed", { count: this.counter });
             }
         });
     }

@@ -1,49 +1,48 @@
 import { Actor } from "./Actor.js";
-import { StraightMovement } from "./StraightMovement.js";
-import { SineMovement } from "./SineMovement.js";
-import { ZigZagMovement } from "./ZigZagMovement.js";
+import { MovementStrategy } from "../patterns/Strategy.js";
+import { movementFactory } from "./MovementStrategyFactory.js";
 
-// Bewegungsmuster: 0 = Gerade->Sinus, 1 = Sinus->Gerade, 2 = ZigZag->Gerade, 3 = Gerade->ZigZag
+/**
+ * Rectangle Actor - verwendet das Strategy Pattern für Bewegung
+ */
 export class Rectangle implements Actor {
     private y: number = 0;
     private speed: number;
     private speedMultiplier: number = 1;
-    private straightMovement: StraightMovement;
-    private sineMovement: SineMovement;
-    private zigZagMovement: ZigZagMovement;
     private startX: number;
     private currentX: number = 0;
-    private pattern: number;
-    private switchedMovement: boolean = false;
+    private reachedBottom: boolean = false;
+
+    // Strategy Pattern: Die Bewegung wird durch eine austauschbare Strategie gesteuert
+    private movementStrategy: MovementStrategy;
 
     constructor(x: number = 100) {
         // Zufällige Geschwindigkeit zwischen 50 und 180
         this.speed = Math.floor(Math.random() * 130) + 50;
         this.startX = x;
-        // Zufälliges Bewegungsmuster
-        this.pattern = Math.floor(Math.random() * 4);
-        this.straightMovement = new StraightMovement(x);
-        this.sineMovement = new SineMovement(x, 60 + Math.random() * 60, 0.015 + Math.random() * 0.02);
-        this.zigZagMovement = new ZigZagMovement(x, 100 + Math.random() * 100, 30 + Math.random() * 40);
+        this.currentX = x;
+
+        // Erstelle eine zufällige Composite-Bewegungsstrategie
+        this.movementStrategy = movementFactory.createRandomCompositeStrategy({ startX: x });
     }
 
-    private reachedBottom: boolean = false;
+    /**
+     * Ermöglicht das Setzen einer neuen Bewegungsstrategie zur Laufzeit
+     */
+    setMovementStrategy(strategy: MovementStrategy): void {
+        this.movementStrategy = strategy;
+    }
 
     move(delta: number): void {
         this.reachedBottom = false;
         this.y += this.speed * this.speedMultiplier * delta;
 
-        // ZigZag braucht delta für Bewegung
-        if ((this.pattern === 2 && this.y < 300) || (this.pattern === 3 && this.y >= 300)) {
-            this.zigZagMovement.calculateX(this.y, delta);
-        }
+        // Berechne X-Position über die aktuelle Strategie
+        this.currentX = this.movementStrategy.calculateX(this.y, delta);
 
         if (this.y > 600) {
             this.y = 0;
-            this.straightMovement.reset();
-            this.sineMovement.reset();
-            this.zigZagMovement.reset();
-            this.switchedMovement = false;
+            this.movementStrategy.reset();
             this.reachedBottom = true;
         }
     }
@@ -53,43 +52,8 @@ export class Rectangle implements Actor {
     }
 
     render(ctx: CanvasRenderingContext2D): void {
-        let x: number;
-
-        switch (this.pattern) {
-            case 0: // Gerade -> Sinus
-                x = this.y < 300 ? this.straightMovement.calculateX(this.y) : this.sineMovement.calculateX(this.y);
-                break;
-            case 1: // Sinus -> Gerade
-                if (this.y < 300) {
-                    x = this.sineMovement.calculateX(this.y);
-                } else {
-                    if (!this.switchedMovement) {
-                        this.straightMovement = new StraightMovement(this.sineMovement.calculateX(300));
-                        this.switchedMovement = true;
-                    }
-                    x = this.straightMovement.calculateX(this.y);
-                }
-                break;
-            case 2: // ZigZag -> Gerade
-                if (this.y < 300) {
-                    x = this.zigZagMovement.getCurrentX();
-                } else {
-                    if (!this.switchedMovement) {
-                        this.straightMovement = new StraightMovement(this.zigZagMovement.getCurrentX());
-                        this.switchedMovement = true;
-                    }
-                    x = this.straightMovement.calculateX(this.y);
-                }
-                break;
-            case 3: // Gerade -> ZigZag
-            default:
-                x = this.y < 300 ? this.straightMovement.calculateX(this.y) : this.zigZagMovement.getCurrentX();
-                break;
-        }
-
         ctx.fillStyle = '#FF0000';
-        ctx.fillRect(x, this.y, 50, 50);
-        this.currentX = x;
+        ctx.fillRect(this.currentX, this.y, 50, 50);
     }
 
     getPosition(): { x: number; y: number } {
@@ -98,13 +62,11 @@ export class Rectangle implements Actor {
 
     reset(): void {
         this.y = 0;
-        // Neue zufällige Position
+        // Neue zufällige Position und Strategie
         const newX = Math.floor(Math.random() * 450) + 50;
         this.startX = newX;
-        this.straightMovement = new StraightMovement(newX);
-        this.sineMovement = new SineMovement(newX, 60 + Math.random() * 60, 0.015 + Math.random() * 0.02);
-        this.zigZagMovement = new ZigZagMovement(newX, 100 + Math.random() * 100, 30 + Math.random() * 40);
-        this.switchedMovement = false;
+        this.currentX = newX;
+        this.movementStrategy = movementFactory.createRandomCompositeStrategy({ startX: newX });
     }
 
     setSpeedMultiplier(multiplier: number): void {

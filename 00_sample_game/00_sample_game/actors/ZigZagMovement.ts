@@ -1,4 +1,10 @@
-export class ZigZagMovement {
+import { MovementStrategy } from "../patterns/Strategy.js";
+
+/**
+ * ZigZag-Bewegungsstrategie
+ * Bewegt das Objekt in einer Zickzack-Linie
+ */
+export class ZigZagMovement implements MovementStrategy {
     private x: number;
     private startX: number;
     private direction: number = 1;
@@ -12,8 +18,10 @@ export class ZigZagMovement {
         this.zigZagDistance = zigZagDistance;
     }
 
-    calculateX(y: number, delta: number): number {
-        this.x += this.direction * this.horizontalSpeed * delta;
+    calculateX(y: number, delta?: number): number {
+        // delta ist erforderlich für zeitbasierte Bewegung
+        const d = delta ?? 0.016; // Fallback auf ~60fps
+        this.x += this.direction * this.horizontalSpeed * d;
 
         if (this.x > this.startX + this.zigZagDistance) {
             this.direction = -1;
@@ -24,12 +32,18 @@ export class ZigZagMovement {
         return this.x;
     }
 
+    getCurrentX(): number {
+        return this.x;
+    }
+
     reset(): void {
         this.x = this.startX;
         this.direction = 1;
     }
 
-    getCurrentX(): number {
-        return this.x;
+    setStartX(x: number): void {
+        this.startX = x;
+        this.x = x;
+        this.direction = 1;
     }
 }
